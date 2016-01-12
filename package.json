@@ -3,15 +3,6 @@
   "version": "1.0.0",
   "description": "Create custom JavaScript errors that also match instanceof.",
   "main": "index.js",
-  "bin": {
-    "custom-error-instance": "error.js"
-  },
-  "directories": {
-    "test": "test"
-  },
-  "scripts": {
-    "test": "mocha test/*.js"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Gi60s/custom-error-instance.git"
