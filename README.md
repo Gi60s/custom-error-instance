@@ -14,9 +14,10 @@ Produce custom JavaScript errors that:
 
  1. [Install](#install)
  2. [Basic Example](#basic-example)
- 3. [Explanation](#explanation)
- 4. [API](#api)
- 5. [Examples](#examples)
+ 3. [Practical Example](#practical-example)
+ 4. [Explanation](#explanation)
+ 5. [API](#api)
+ 6. [Examples](#examples)
 
 ## Install
 
