@@ -11,7 +11,7 @@ Produce custom JavaScript errors that:
 ## Install
 
 ```sh
-npm install custom-error-interface
+npm install custom-error-instance
 ```
 
 ## Basic Example
