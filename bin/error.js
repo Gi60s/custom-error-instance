@@ -1,122 +1,191 @@
 "use strict";
 var schema          = require('./schema');
+var Err;
 
-var Err = CustomError('CustomError');
-var store = {};
+module.exports = function(name, defaultProperties, customConstructor) {
+    var construct = generateErrorConstructor(name, Error, defaultProperties, customConstructor);
+    extend(module.exports, name, construct);
+    return construct;
+};
 
 
-module.exports = CustomError;
-
-/**
- * Define a custom error constructor.
- * @param {string} className
- * @param {object} [defaultProperties]
- * @param {object} [customConstructor]
- * @returns {function}
- */
-function CustomError(className, defaultProperties, customConstructor) {
-    var result = null;
-    var str;
-
-    //validate className
-    if (typeof className !== 'string' || !className) {
-        throw new Err('Cannot produce custom error class without a valid name. ' +
-            'Expected a non empty string. Received: ' + className, { code: 'ENAME' });
-    }
-    if (CustomError.hasOwnProperty(className)) {
-        throw new Err('A custom error with this class name already exists: ' + className, { code: 'EEXIST' });
-    }
-
-    //normalize optional parameters
-    if (arguments.length === 2 && typeof arguments[1] === 'function') {
-        defaultProperties = {};
-        customConstructor = arguments[1];
-    } else if (arguments.length >= 2) {
-        if (!defaultProperties || typeof defaultProperties !== 'object') defaultProperties = {};
-        if (typeof customConstructor !== 'function') customConstructor = noop;
-    } else {
-        defaultProperties = {};
-        customConstructor = noop;
-    }
-
-    //create custom constructor
-    str = 'result = function ' + className + '(message, properties, configuration) {' +
-        'if (!(this instanceof ' + className + ')) return new ' + className + '(message, properties, configuration);' +
-        'initialize.call(this, className, defaultProperties, message, properties, configuration);' +
-        'customConstructor.call(this, message, properties);' +
-        '}';
-    eval(str);
-
-    //cause the function prototype to inherit from Error prototype and toJSON
-    result.prototype = Object.create(Error.prototype);
-    result.prototype.toJSON = toJSON;
-    result.prototype.constructor = result;
-
-    //store and return the constructor
-    CustomError[className] = result;
-    return result;
-}
+Err = module.exports('CustomError');
+Err.extend('name', { message: 'Invalid name provided.', code: 'ENAME', expected: 'a non-empty string' });
+Err.extend('exist', { message: 'Name in use', code: 'EEXIST' });
+console.log('');
 
 /**
- * Initialize instance.
- * @param {string} name The class name.
- * @param {object} defaultProperties
- * @param {string} [message]
- * @param {object} [properties]
- * @param {object} [configuration]
+ * Set the property for an object.
+ * @param {object} obj
+ * @param {name} property
+ * @param {*} value
  */
-function initialize(name, defaultProperties, message, properties, configuration) {
-    var config;
-    var err = this;
-    var finalProperties;
-    var messageStr;
-    var originalStackLength = Error.stackTraceLimit;
-    var stack;
+function extend(obj, property, value) {
 
-    //set defaults
-    if (!message || typeof message !== 'string') message = '';
-    if (!properties || typeof properties !== 'object') properties = {};
-    if (!configuration || typeof configuration !== 'object') configuration = {};
+    // possibly throw invalid property name error
+    if (typeof property !== 'string' || !property) {
+        throw new Err.name({ received: property });
+    }
 
-    //get the final properties
-    finalProperties = Object.assign({}, defaultProperties, properties);
+    // possibly throw exists error
+    if (Object.keys(obj).indexOf(property) !== -1) {
+        throw new Err.exist('A custom error with this name already exists: ' + property);
+    }
 
-    //get the normalized configuration
-    config = schema.normalize(configuration);
-
-    //generate default message string
-    messageStr = name + (properties.hasOwnProperty('code') ? ' ' + properties.code + ': ' : ': ') + message;
-
-    //determine what the stack trace length should be
-    if (typeof config.stackLength !== 'number') config.stackLength = 10;
-    if (config.stackLength < 0) config.stackLength = 0;
-
-    //get the stack trace
-    Error.stackTraceLimit = config.stackLength + 2;
-    stack = (new Error()).stack.split('\n');
-    stack.splice(0, 3);
-    stack.unshift(messageStr);
-    Error.stackTraceLimit = originalStackLength;
-
-    //store the message and stack properties
-    this.message = messageStr;
-    this.stack = stack.join('\n');
-
-    //add properties to this object
-    Object.keys(finalProperties).forEach(function (key) {
-        Object.defineProperty(err, key, {
-            value: finalProperties[key],
-            enumerable: true,
-            writable: true,
-            configurable: true
-        });
+    delete obj[property];
+    Object.defineProperty(obj, property, {
+        enumerable: true,
+        configurable: true,
+        writable: false,
+        value: value
     });
 }
 
 /**
- * No operation.
+ * Generate a function that is to be used as an Error constructor.
+ * @param {object} defaultProperties
+ * @param {object} parentConstructor
+ * @param {function} [customConstructor]
+ * @param {string} [constructorName]
+ * @returns {function}
  */
-function noop() {}
+function generateErrorConstructor(constructorName, parentConstructor, defaultProperties, customConstructor) {
+    var args;
+    var construct;
+
+    // possibly throw invalid property name error
+    if (typeof constructorName !== 'string' || !constructorName) throw new Err.name({ received: constructorName });
+
+    // normalize optional parameters
+    if (typeof defaultProperties === 'function') {
+        customConstructor = arguments[2];
+        defaultProperties = {};
+    } else {
+        if (!defaultProperties || typeof defaultProperties !== 'object') defaultProperties = {};
+        if (typeof customConstructor !== 'function') customConstructor = defaultCustomConstructor;
+    }
+
+    // store arguments (for extend function)
+    args = {
+        name: constructorName,
+        props: defaultProperties,
+        custom: customConstructor
+    };
+
+    construct = function(message, properties, configuration) {
+        var config;
+        var err;
+        var finalProperties;
+        var originalStackLength;
+        var stack;
+
+        // force this function to be called with the new keyword
+        if (!(this instanceof construct)) return new construct();
+        err = this;
+
+        // rename the constructor
+        delete this.constructor.name;
+        Object.defineProperty(this.constructor, 'name', {
+            enumerable: false,
+            configurable: true,
+            value: constructorName,
+            writable: false
+        });
+
+        // set default parameter values
+        if (typeof message === 'object') {
+            configuration = properties && typeof properties === 'object' ? properties : {};
+            properties = message ? message : {};
+            message = properties.message || '';
+        } else {
+            if (!message || typeof message !== 'string') message = '';
+            if (!properties || typeof properties !== 'object') properties = {};
+            if (!configuration || typeof configuration !== 'object') configuration = {};
+        }
+
+        // get the final properties
+        finalProperties = Object.assign({}, defaultProperties, properties);
+
+        // get the normalized configuration
+        config = schema.normalize(configuration);
+
+        // set the error's name
+        this.name = constructorName;
+
+        // set the default message
+        this.message = message;
+
+        // set the stack trace
+        originalStackLength = Error.stackTraceLimit;
+        Error.stackTraceLimit = config.stackLength + 2;
+        stack = (new Error()).stack.split('\n');
+        stack.splice(0, 3);
+        stack.unshift(this.message);
+        Error.stackTraceLimit = originalStackLength;
+        this.stack = stack.join('\n');
+
+        // add properties to this object
+        Object.keys(finalProperties).forEach(function (key) {
+            Object.defineProperty(err, key, {
+                value: finalProperties[key],
+                enumerable: true,
+                writable: true,
+                configurable: true
+            });
+        });
+
+        // call the custom constructor
+        customConstructor.call(this, message, properties);
+    };
+
+    //cause the function prototype to inherit from Error prototype
+    construct.prototype = Object.create(parentConstructor.prototype);
+    construct.prototype.constructor = construct;
+
+    //add additional properties to the constructor's prototype
+    construct.prototype.toJSON = toJSON;
+
+    //add an extends property to the constructor object
+    construct.extend = function(name, defaultProperties, customConstructor) {
+        var con;
+        var props;
+        var cust;
+
+        // normalize optional parameters
+        if (typeof defaultProperties === 'function') {
+            cust = arguments[1];
+            props = Object.assign({}, args.props);
+        } else {
+            props = !defaultProperties || typeof defaultProperties !== 'object' ?
+                Object.assign({}, args.props) :
+                Object.assign({}, args.props, defaultProperties);
+            cust = typeof customConstructor !== 'function' ? args.custom : defaultCustomConstructor;
+        }
+
+        con = generateErrorConstructor(constructorName + '.' + name, construct, props, function(message, properties) {
+            cust.call(this, message, properties, args.custom);
+        });
+        extend(construct, name, con);
+        return con;
+    };
+
+    return construct;
+}
+
+/**
+ * The default custom constructor function.
+ */
+function defaultCustomConstructor(message, properties, parent) {
+    var stack;
+
+    this.message = this.name +
+        (this.hasOwnProperty('code') ? ' ' + this.code + ': ' : ': ') +
+        message;
+
+    stack = this.stack.split('\n');
+    stack.splice(0, 1, this.message);
+    this.stack = stack.join('\n');
+}
 
 /**
  * Convert object instance into JSON
