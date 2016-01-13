@@ -8,6 +8,7 @@ Produce custom JavaScript errors that:
  - Have instanceof types and instance constructor names.
  - Accept additional properties.
  - Produce custom error output.
+ - Will produce a stack trace of the length you specify.
 
 ## Table of Contents
 
@@ -40,6 +41,32 @@ try {
 }
 ```
 
+## Practical Example
+
+```js
+var CustomError = require('custom-error-instance');
+var store = {};
+
+var Err = CustomError('MapError');
+Err.extend('inuse', { message: 'The specified key is already in use.', code: 'EINUSE' });
+Err.extend('dne', { message: 'The specified key does not exist.', code: 'EDNE' });
+
+exports.add = function(key, value) {
+    if (store.hasOwnProperty(key)) throw new Err.inuse();   // "MapError EINUSE: The specified key is already in use."
+    store[key] = value;
+};
+
+exports.get = function(key) {
+    if (!store.hasOwnProperty(key)) throw new Err.dne();    // "MapError EDNE: The specified key does not exist."
+    return store[key];
+};
+
+exports.remove = function(key) {
+    if (!store.hasOwnProperty(key)) throw new Err.dne();    // "MapError EDNE: The specified key does not exist."
+    delete store[key];
+};
+```
+
 ## Explanation
 
 First we need to include the custom-error-instance library in our code.
@@ -51,6 +78,8 @@ var CustomError = require('custom-error-instance');
 Next we create a custom error constructor function. This returns the custom error constructor, but it also registers it on the CustomError object as a property with the same name.
 
 ```js
+var CustomError = require('custom-error-instance');
+
 var ErrorX = CustomError('MyError');
 console.log(ErrorX === CustomError.MyError);    // true
 ```
@@ -58,6 +87,9 @@ console.log(ErrorX === CustomError.MyError);    // true
 Now we can create an instance of our custom error.
 
 ```js
+var CustomError = require('custom-error-instance');
+var ErrorX = CustomError('MyError');
+
 var err = new ErrorX('There is a problem.');
 console.log(err instanceof ErrorX);                 // true
 console.log(err instanceof CustomError.MyError);    // true
@@ -67,6 +99,9 @@ console.log(err instanceof Error);                  // true, through inheritance
 We can also throw the error directly.
 
 ```js
+var CustomError = require('custom-error-instance');
+var ErrorX = CustomError('MyError');
+
 throw new ErrorX('There is a problem.');
 throw new CustomError.MyError('There is a problem.');
 ```
@@ -116,7 +151,7 @@ var MyErr = CustomError('MyError');             // Note: MyErr === CustomError.M
 var ChildError = MyErr.extend('child');         // Note: ChildError === CustomError.MyError.child
 var e = new ChildError('Oops');
 
-console.log(e.message);                         // "MyError: Oops";
+console.log(e.message);                         // "MyError.child: Oops";
 console.log(e instanceof ChildError);           // true
 console.log(e instanceof MyError);              // true, through inheritance
 console.log(e instanceof Error);                // true, through inheritance
@@ -159,4 +194,16 @@ var MyError = CustomError('MyError', {}, function(message, properties, parent) {
 
 var e = new MyError('Oops');
 console.log(e.message);         // "This is a MyError with message: Oops"
+```
+
+**Example 6: Stack Trace Length**
+
+If you ever need a longer stack trace on an error then you can use the configuration parameter to pass in the length of the stack trace that you want. Note that if you specify a number larger than the full possible stack trace that only that which is available will be included in the trace.
+
+```js
+var CustomError = require('custom-error-instance');
+var MyError = CustomError('MyError');
+
+var e = new MyError('Oops', {}, { stackLength: 20 });
+console.error(e.stack);         // output the stack trace
 ```
