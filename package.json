@@ -1,6 +1,6 @@
 {
   "name": "custom-error-instance",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Create custom JavaScript errors that also match instanceof.",
   "main": "index.js",
   "repository": {
