@@ -158,7 +158,7 @@ describe('CustomError', function() {
             var E = CustomError('MyError');
             var E2 = E.extend('foo');
             var e = new E2({ message: 'a message' });
-            expect(e.message).to.be.equal('MyError.foo: a message');
+            expect(e.message).to.be.equal('MyError: a message');
         });
     });
 

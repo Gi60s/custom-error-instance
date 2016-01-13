@@ -3,7 +3,7 @@ var schema          = require('./schema');
 var Err;
 
 module.exports = function(name, defaultProperties, customConstructor) {
-    var construct = generateErrorConstructor(name, Error, defaultProperties, customConstructor);
+    var construct = generateErrorConstructor(name, Error, name, defaultProperties, customConstructor);
     extend(module.exports, name, construct);
     return construct;
 };
@@ -45,11 +45,12 @@ function extend(obj, property, value) {
  * Generate a function that is to be used as an Error constructor.
  * @param {object} defaultProperties
  * @param {object} parentConstructor
+ * @param {string} parentName
  * @param {function} [customConstructor]
  * @param {string} [constructorName]
  * @returns {function}
  */
-function generateErrorConstructor(constructorName, parentConstructor, defaultProperties, customConstructor) {
+function generateErrorConstructor(constructorName, parentConstructor, parentName, defaultProperties, customConstructor) {
     var args;
     var construct;
 
@@ -58,7 +59,7 @@ function generateErrorConstructor(constructorName, parentConstructor, defaultPro
 
     // normalize optional parameters
     if (typeof defaultProperties === 'function') {
-        customConstructor = arguments[2];
+        customConstructor = arguments[3];
         defaultProperties = {};
     } else {
         if (!defaultProperties || typeof defaultProperties !== 'object') defaultProperties = {};
@@ -110,7 +111,7 @@ function generateErrorConstructor(constructorName, parentConstructor, defaultPro
         config = schema.normalize(configuration);
 
         // set the error's name
-        this.name = constructorName;
+        this.name = parentName;
 
         // set the default message
         this.message = message;
@@ -162,7 +163,7 @@ function generateErrorConstructor(constructorName, parentConstructor, defaultPro
             cust = typeof customConstructor !== 'function' ? args.custom : defaultCustomConstructor;
         }
 
-        con = generateErrorConstructor(constructorName + '.' + name, construct, props, function(message, properties) {
+        con = generateErrorConstructor(constructorName + '.' + name, construct, constructorName, props, function(message, properties) {
             cust.call(this, message, properties, args.custom);
         });
         extend(construct, name, con);
@@ -180,7 +181,7 @@ function defaultCustomConstructor(message, properties, parent) {
 
     this.message = this.name +
         (this.hasOwnProperty('code') ? ' ' + this.code + ': ' : ': ') +
-        message;
+        this.message;
 
     stack = this.stack.split('\n');
     stack.splice(0, 1, this.message);
