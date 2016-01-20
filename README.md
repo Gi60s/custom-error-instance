@@ -2,7 +2,7 @@
 
 Produce custom JavaScript errors that:
 
- - Integrate seemlessly with NodeJS' existing Error implementation.
+ - Integrate seamlessly with NodeJS' existing Error implementation.
  - Extend the Error object without altering it.
  - Create an inheritance hierarchy of custom errors and sub custom errors.
  - Have instanceof types and instance constructor names.
@@ -197,7 +197,7 @@ console.log(e.foo);                                 // "bar"
 
 **Example 5: Custom Factory**
 
-Every factory recieves two parameters: 1) the properties object, 2) a configuration that should be used to modify the behavior of the factory. If a custom error inherits from another custom error then all factories in the inheritance chain are called, starting at the topmost parent. The factory function is called with the scope of the error instance.
+Every factory receives two parameters: 1) the properties object, 2) a configuration that should be used to modify the behavior of the factory. If a custom error inherits from another custom error then all factories in the inheritance chain are called, starting at the topmost parent. The factory function is called with the scope of the error instance.
 
 ```js
 var CustomError = require('custom-error-instance');
