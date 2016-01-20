@@ -1,286 +1,187 @@
 "use strict";
 var expect      = require('chai').expect;
-var CustomError = require('../index.js');
+var CustomError = require('../index');
 
 describe('CustomError', function() {
 
     describe('define', function() {
 
-        afterEach(emptyDataStore);
-
         it('returns constructor function', function() {
             expect(CustomError('MyError')).to.be.a('function');
         });
 
-        it('throws error on duplicate', function() {
-            CustomError('MyError');
-            expect(function() { CustomError('MyError'); }).to.throw(CustomError.CustomError.exist);
-        });
+        describe('parameter tests', function() {
 
-        it('accepts default properties', function() {
-            var called = false;
-            var E = CustomError('MyError', { foo: 'bar' });
-            var e = new E();
-            expect(e.foo).to.be.equal('bar');
-        });
-
-        it('accepts custom constructor', function() {
-            var called = false;
-            var E = CustomError('MyError', function() { called = true; });
-            new E();
-            expect(called).to.be.true;
-        });
-
-        it('custom constructor has instance scope', function() {
-            var scope;
-            var E = CustomError('MyError', function() { scope = this; });
-            new E();
-            expect(scope).to.be.instanceof(E);
-        });
-
-        it('custom constructor get\'s message as parameter 1', function() {
-            var message;
-            var E = CustomError('MyError', function(m) { message = m; });
-            new E('a message');
-            expect(message).to.be.equal('a message');
-        });
-
-        it('custom constructor get\'s properties as parameter 1', function() {
-            var config = { foo: 'bar' };
-            var properties;
-            var E = CustomError('MyError', function(m, p) { properties = p; });
-            new E({ foo: 'bar' });
-            expect(properties).to.be.deep.equal(config);
-        });
-
-        it('custom constructor get\'s properties as parameter 2', function() {
-            var config = { foo: 'bar' };
-            var properties;
-            var E = CustomError('MyError', function(m, p) { properties = p; });
-            new E('', { foo: 'bar' });
-            expect(properties).to.be.deep.equal(config);
-        });
-
-        it('custom constructor properties as parameter 1 accepts message', function() {
-            var E = CustomError('MyError');
-            var e = new E({ message: 'a message' });
-            expect(e.message).to.be.equal('MyError: a message');
-        });
-
-    });
-
-    describe('extend', function() {
-        afterEach(emptyDataStore);
-
-        it('returns constructor function', function() {
-            var E = CustomError('MyError');
-            expect(E.extend('foo')).to.be.a('function');
-        });
-
-        it('throws error on duplicate', function() {
-            var E = CustomError('MyError');
-            E.extend('foo');
-            expect(function() { E.extend('foo'); }).to.throw(CustomError.CustomError.exist);
-        });
-
-        it('accepts default properties', function() {
-            var called = false;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', { foo: 'bar' });
-            var e = new E2();
-            expect(e.foo).to.be.equal('bar');
-        });
-
-        it('inherits default properties', function() {
-            var called = false;
-            var E = CustomError('MyError', { foo: 'bar' });
-            var E2 = E.extend('foo', { baz: 'quo' });
-            var e = new E2();
-            expect(e.foo).to.be.equal('bar');
-            expect(e.baz).to.be.equal('quo');
-        });
-
-        it('accepts custom constructor', function() {
-            var called = false;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', function() { called = true; });
-            new E2();
-            expect(called).to.be.true;
-        });
-
-        it('inherits custom constructor', function() {
-            var called = false;
-            var called2 = false;
-            var E = CustomError('MyError', function() { called = true; });
-            var E2 = E.extend('foo', function(message, properties, parent) {
-                called2 = true;
-                parent();
+            it('no parameters', function() {
+                var proto = CustomError().prototype.CustomError;
+                expect(proto.chain).to.be.an('Array');
+                expect(proto.factory).to.be.a('function');
+                expect(proto.name).to.be.equal('Error');
+                expect(proto.parent).to.be.equal(Error);
+                expect(proto.properties).to.be.deep.equal({});
             });
-            new E2();
-            expect(called && called2).to.be.true;
-        });
 
-        it('custom constructor has instance scope', function() {
-            var scope;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', function() { scope = this; });
-            new E2();
-            expect(scope).to.be.instanceof(E2);
-        });
+            describe('start name', function() {
 
-        it('custom constructor get\'s message as parameter 1', function() {
-            var message;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', function(m) { message = m; });
-            new E2('a message');
-            expect(message).to.be.equal('a message');
-        });
+                it('name only', function() {
+                    expect(CustomError('Foo').prototype.CustomError.name).to.be.equal('Foo');
+                });
 
-        it('custom constructor get\'s properties as parameter 1', function() {
-            var config = { foo: 'bar' };
-            var properties;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', function(m, p) { properties = p; });
-            new E2({ foo: 'bar' });
-            expect(properties).to.be.deep.equal(config);
-        });
+                it('name and parent', function() {
+                    var P = CustomError();
+                    var E = CustomError('Foo', P);
+                    expect(E.prototype.CustomError.name).to.be.equal('Foo');
+                    expect(E.prototype.CustomError.parent).to.be.equal(P);
+                });
 
-        it('custom constructor get\'s properties as parameter 2', function() {
-            var config = { foo: 'bar' };
-            var properties;
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo', function(m, p) { properties = p; });
-            new E2('', { foo: 'bar' });
-            expect(properties).to.be.deep.equal(config);
-        });
+                it('name and properties', function() {
+                    var E = CustomError('Foo', { foo: 'bar' });
+                    expect(E.prototype.CustomError.name).to.be.equal('Foo');
+                    expect(E.prototype.CustomError.properties).to.be.deep.equal({ foo: 'bar' });
+                });
 
-        it('custom constructor properties as parameter 1 accepts message', function() {
-            var E = CustomError('MyError');
-            var E2 = E.extend('foo');
-            var e = new E2({ message: 'a message' });
-            expect(e.message).to.be.equal('MyError: a message');
-        });
-    });
+                it('name and factory', function() {
+                    var fn = function() {};
+                    var E = CustomError('Foo', fn);
+                    expect(E.prototype.CustomError.name).to.be.equal('Foo');
+                    expect(E.prototype.CustomError.factory).to.be.equal(fn);
+                });
 
-    describe('instance', function() {
+            });
 
-        afterEach(emptyDataStore);
+            describe('start parent', function() {
 
-        it('inherits from Error', function() {
-            var E = CustomError('MyError');
-            var e = new E();
-            expect(e).to.be.instanceof(Error);
-        });
+                it('parent only', function() {
+                    var E = CustomError();
+                    expect(CustomError(E).prototype.CustomError.parent).to.be.equal(E);
+                });
 
-        it('produces instanceof match', function() {
-            var E = CustomError('MyError');
-            var e = new E();
-            expect(e).to.be.instanceof(E);
-        });
+                it('parent and properties', function() {
+                    var P = CustomError();
+                    var E = CustomError(P, { foo: 'bar' });
+                    expect(E.prototype.CustomError.parent).to.be.equal(P);
+                    expect(E.prototype.CustomError.properties).to.be.deep.equal({ foo: 'bar' });
+                });
 
-        it('produces named constructor', function() {
-            var E = CustomError('MyError');
-            var e = new E();
-            expect(e.constructor.name).to.be.equal('MyError');
-        });
+                it('should fail properties then parent', function() {
+                    try {
+                        var P = CustomError();
+                        var E = CustomError({ foo: 'bar' }, P);
+                        throw new Error('Should have failed');
+                    } catch (e) {
+                        expect(e.name).to.be.equal('CustomError');
+                        expect(e.code).to.be.equal('EOARG');
+                    }
+                });
 
-        it('stores instanceof match', function() {
-            var E = CustomError('MyError');
-            var e = new E();
-            expect(e).to.be.instanceof(CustomError.MyError);
-        });
+                it('parent and factory', function() {
+                    var fn = function() {};
+                    var P = CustomError();
+                    var E = CustomError(P, fn);
+                    expect(E.prototype.CustomError.parent).to.be.equal(P);
+                    expect(E.prototype.CustomError.factory).to.be.equal(fn);
+                });
 
-        it('accepts zero arguments', function() {
-            var E = CustomError('MyError');
-            var e = new E();
-            expect(e.message).to.be.equal('MyError: ');
-        });
+            });
 
-        it('accepts message argument', function() {
-            var E = CustomError('MyError');
-            var e = new E('my message');
-            expect(e.message).to.be.equal('MyError: my message');
-        });
+            describe('start properties', function() {
 
-        it('accepts properties argument', function() {
-            var E = CustomError('MyError');
-            var e = new E('', { foo: 'bar' });
-            expect(e.foo).to.be.equal('bar');
-        });
+                it('properties only', function() {
+                    expect(CustomError({ foo: 'bar' }).prototype.CustomError.properties).to.be.deep.equal({ foo: 'bar' });
+                });
 
-        it('merges default and injected properties', function() {
-            var E = CustomError('MyError', { a: 1, b: 2 });
-            var e = new E('', { b: 'B', c: 3 });
-            expect(e.a).to.be.equal(1);
-            expect(e.b).to.be.equal('B');
-            expect(e.c).to.be.equal(3);
-        });
+                it('properties and factory', function() {
+                    var fn = function() {};
+                    var E = CustomError({ foo: 'bar' }, fn);
+                    expect(E.prototype.CustomError.properties).to.be.deep.equal({ foo: 'bar' });
+                    expect(E.prototype.CustomError.factory).to.be.equal(fn);
+                });
 
-        it('accepts code property argument', function() {
-            var E = CustomError('MyError');
-            var e = new E('', { code: 'ABC' });
-            expect(e.message).to.be.equal('MyError ABC: ');
-        });
+            });
 
-        it('accepts configuration argument', function() {
-            var E = CustomError('MyError');
-            expect(function() { new E('', {}, { stackLength: 5 }); }).to.not.throw(Error);
-        });
+            describe('start factory', function() {
 
-        it('validates configuration argument', function() {
-            var E = CustomError('MyError');
-            expect(function() { new E('', {}, { stackLength: -1 }); }).to.throw(Error);
-        });
+                it('factory only', function() {
+                    var fn = function() {};
+                    expect(CustomError(fn).prototype.CustomError.factory).to.be.equal(fn);
+                });
 
-        it('has toJSON function', function() {
-            var E = CustomError('MyError');
-            var e = new E('', { code: 'ABC' });
-            var s = e.toJSON();
-            expect(s).to.be.a('string');
+            });
+
         });
 
     });
 
-    describe('extended instance', function() {
-        var E;
-
-        afterEach(emptyDataStore);
-
-        beforeEach(function() {
-            E = CustomError('MyError').extend('foo');
-        });
+    describe('inherit', function() {
 
         it('inherits from Error', function() {
-            var e = new E();
+            var E = CustomError();
+            expect(E()).to.be.instanceof(Error);
+        });
+
+        it('instance of self custom error constructor', function() {
+            var E = CustomError();
+            expect(E()).to.be.instanceof(E);
+        });
+
+        it('inherits from custom error', function() {
+            var P = CustomError();
+            var E = CustomError(P);
+            var e = E();
             expect(e).to.be.instanceof(Error);
-        });
-
-        it('inherits from parent', function() {
-            var e = new E();
-            expect(e).to.be.instanceof(CustomError.MyError);
-        });
-
-        it('produces instanceof match', function() {
-            var e = new E();
+            expect(e).to.be.instanceof(P);
             expect(e).to.be.instanceof(E);
         });
 
-        it('produces named constructor', function() {
-            var e = new E();
-            expect(e.constructor.name).to.be.equal('MyError.foo');
+    });
+
+    describe('name', function() {
+
+        it('instance has name provided', function() {
+            var e = CustomError('FooError')();
+            expect(e.name).to.be.equal('FooError');
         });
 
-        it('stores instanceof match', function() {
-            var e = new E();
-            expect(e).to.be.instanceof(CustomError.MyError.foo);
+        it('instance has name inherited', function() {
+            var P = CustomError('FooError');
+            var e = CustomError(P)();
+            expect(e.name).to.be.equal('FooError');
+        });
+
+        it('instance has constructor name provided', function() {
+            var e = CustomError('FooError')();
+            expect(e.constructor.name).to.be.equal('FooError');
+        });
+
+        it('instance has constructor name inherited', function() {
+            var P = CustomError('FooError');
+            var e = CustomError(P)();
+            expect(e.constructor.name).to.be.equal('FooError');
+        });
+
+    });
+
+    describe('factory', function() {
+
+        it('default factory', function() {
+            var E = CustomError();
+            var e = E('Hello');
+            expect(e.message).to.be.equal('Hello');
+        });
+
+        it('custom factory', function() {
+            var fn = function(props, config) { this.message = JSON.stringify(props); };
+            var e = CustomError(fn)('Hello');
+            expect(e.message).to.be.equal('{"message":"Hello"}');
+        });
+
+        it('custom and inherited factory', function() {
+            var fn = function(props, config) { this.message += 'ABC'; };
+            var P = CustomError();
+            var e = CustomError(P, fn)('Hello');
+            expect(e.message).to.be.equal('HelloABC');
         });
 
     });
 
 });
-
-function emptyDataStore() {
-    Object.keys(CustomError).forEach(function(key) {
-        if (key !== 'CustomError') delete CustomError[key];
-    });
-}

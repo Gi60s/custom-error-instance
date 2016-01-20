@@ -1,202 +1,203 @@
 "use strict";
-var schema          = require('./schema');
-var Err;
+var schema              = require('./schema');
 
-module.exports = function(name, defaultProperties, customConstructor) {
-    var construct = generateErrorConstructor(name, Error, name, defaultProperties, customConstructor);
-    extend(module.exports, name, construct);
-    return construct;
-};
+var Err = CustomError('CustomError');
+Err.order = CustomError(Err, { message: 'Arguments out of order.', code: 'EOARG' });
 
-
-Err = module.exports('CustomError');
-Err.extend('name', { message: 'Invalid name provided.', code: 'ENAME', expected: 'a non-empty string' });
-Err.extend('exist', { message: 'Name in use', code: 'EEXIST' });
-console.log('');
+module.exports = CustomError;
 
 /**
- * Set the property for an object.
- * @param {object} obj
- * @param {name} property
- * @param {*} value
+ * Create a custom error
+ * @param {string} [name] The name to give the error. Defaults to the name of it's parent.
+ * @param {function} [parent] The Error or CustomError constructor to inherit from.
+ * @param {object} [properties] The default properties for the custom error.
+ * @param {function} [factory] A function to call to modify the custom error instance when it is instantiated.
+ * @returns {function} that should be used as a constructor.
  */
-function extend(obj, property, value) {
-
-    // possibly throw invalid property name error
-    if (typeof property !== 'string' || !property) {
-        throw new Err.name({ received: property });
-    }
-
-    // possibly throw exists error
-    if (Object.keys(obj).indexOf(property) !== -1) {
-        throw new Err.exist('A custom error with this name already exists: ' + property);
-    }
-
-    delete obj[property];
-    Object.defineProperty(obj, property, {
-        enumerable: true,
-        configurable: true,
-        writable: false,
-        value: value
-    });
-}
-
-/**
- * Generate a function that is to be used as an Error constructor.
- * @param {object} defaultProperties
- * @param {object} parentConstructor
- * @param {string} parentName
- * @param {function} [customConstructor]
- * @param {string} [constructorName]
- * @returns {function}
- */
-function generateErrorConstructor(constructorName, parentConstructor, parentName, defaultProperties, customConstructor) {
-    var args;
+function CustomError(name, parent, properties, factory) {
     var construct;
+    var isRoot;
 
-    // possibly throw invalid property name error
-    if (typeof constructorName !== 'string' || !constructorName) throw new Err.name({ received: constructorName });
+    // normalize arguments
+    parent = findArg(arguments, 1, Error, isParentArg, [isPropertiesArg, isFactoryArg]);
+    properties = findArg(arguments, 2, {}, isPropertiesArg, [isFactoryArg]);
+    factory = findArg(arguments, 3, noop, isFactoryArg, []);
+    name = findArg(arguments, 0, parent === Error ? 'Error' : parent.prototype.CustomError.name, isNameArg, [isParentArg, isPropertiesArg, isFactoryArg]);
 
-    // normalize optional parameters
-    if (typeof defaultProperties === 'function') {
-        customConstructor = arguments[3];
-        defaultProperties = {};
-    } else {
-        if (!defaultProperties || typeof defaultProperties !== 'object') defaultProperties = {};
-        if (typeof customConstructor !== 'function') customConstructor = defaultCustomConstructor;
-    }
+    // if this is the root and their is no factory then use the default root factory
+    isRoot = parent === Error;
+    if (isRoot && factory === noop) factory = rootFactory;
 
-    // store arguments (for extend function)
-    args = {
-        name: constructorName,
-        props: defaultProperties,
-        custom: customConstructor
-    };
-
-    construct = function(message, properties, configuration) {
-        var config;
-        var err;
-        var finalProperties;
-        var originalStackLength;
-        var stack;
+    // build the constructor function
+    construct = function(message, configuration) {
+        var ar;
+        var i;
+        var item;
+        var props;
 
         // force this function to be called with the new keyword
-        if (!(this instanceof construct)) return new construct();
-        err = this;
+        if (!(this instanceof construct)) return new construct(message, configuration);
 
         // rename the constructor
         delete this.constructor.name;
         Object.defineProperty(this.constructor, 'name', {
             enumerable: false,
             configurable: true,
-            value: constructorName,
+            value: name,
             writable: false
         });
 
-        // set default parameter values
-        if (typeof message === 'object') {
-            configuration = properties && typeof properties === 'object' ? properties : {};
-            properties = message ? message : {};
-            message = properties.message || '';
-        } else {
-            if (!message || typeof message !== 'string') message = '';
-            if (!properties || typeof properties !== 'object') properties = {};
-            if (!configuration || typeof configuration !== 'object') configuration = {};
+        // make sure that the message is an object
+        if (typeof message === 'string') message = { message: message };
+        if (!message) message = {};
+
+        // build the properties object
+        ar = this.CustomError.chain.slice(0).reverse().map(function(value) { return value.properties });
+        ar.push(message);
+        ar.unshift({});
+        props = Object.assign.apply(Object, ar);
+
+        // call each factory in the chain, starting at the root
+        for (i = this.CustomError.chain.length - 1; i >= 0; i--) {
+            item = this.CustomError.chain[i];
+            if (item.factory !== noop) {
+                item.factory.call(this, props, configuration);
+            }
         }
-
-        // get the final properties
-        finalProperties = Object.assign({}, defaultProperties, properties);
-
-        // get the normalized configuration
-        config = schema.normalize(configuration);
-
-        // set the error's name
-        this.name = parentName;
-
-        // set the default message
-        this.message = message;
-
-        // set the stack trace
-        originalStackLength = Error.stackTraceLimit;
-        Error.stackTraceLimit = config.stackLength + 2;
-        stack = (new Error()).stack.split('\n');
-        stack.splice(0, 3);
-        stack.unshift(this.message);
-        Error.stackTraceLimit = originalStackLength;
-        this.stack = stack.join('\n');
-
-        // add properties to this object
-        Object.keys(finalProperties).forEach(function (key) {
-            Object.defineProperty(err, key, {
-                value: finalProperties[key],
-                enumerable: true,
-                writable: true,
-                configurable: true
-            });
-        });
-
-        // call the custom constructor
-        customConstructor.call(this, message, properties);
     };
 
-    //cause the function prototype to inherit from Error prototype
-    construct.prototype = Object.create(parentConstructor.prototype);
+    // cause the function prototype to inherit from parent's prototype
+    construct.prototype = Object.create(parent.prototype);
     construct.prototype.constructor = construct;
 
-    //add additional properties to the constructor's prototype
-    construct.prototype.toJSON = toJSON;
+    // update error name
+    construct.prototype.name = name;
 
-    //add an extends property to the constructor object
-    construct.extend = function(name, defaultProperties, customConstructor) {
-        var con;
-        var props;
-        var cust;
+    // add details about the custom error to the prototype
+    construct.prototype.CustomError = {
+        chain: isRoot ? [] : parent.prototype.CustomError.chain.slice(0),
+        factory: factory,
+        name: name,
+        parent: parent,
+        properties: properties
+    };
+    construct.prototype.CustomError.chain.unshift(construct.prototype.CustomError);
 
-        // normalize optional parameters
-        if (typeof defaultProperties === 'function') {
-            cust = arguments[1];
-            props = Object.assign({}, args.props);
-        } else {
-            props = !defaultProperties || typeof defaultProperties !== 'object' ?
-                Object.assign({}, args.props) :
-                Object.assign({}, args.props, defaultProperties);
-            cust = typeof customConstructor !== 'function' ? args.custom : defaultCustomConstructor;
-        }
-
-        con = generateErrorConstructor(constructorName + '.' + name, construct, constructorName, props, function(message, properties) {
-            cust.call(this, message, properties, args.custom);
-        });
-        extend(construct, name, con);
-        return con;
+    // update the toString method on the prototype to accept a code
+    construct.prototype.toString = function() {
+        var result = this.CustomError.chain[this.CustomError.chain.length - 1].name;
+        if (this.code) result  += ' ' + this.code;
+        if (this.message) result += ': ' + this.message;
+        return result;
     };
 
     return construct;
 }
 
-/**
- * The default custom constructor function.
- */
-function defaultCustomConstructor(message, properties, parent) {
-    var stack;
 
-    this.message = this.name +
-        (this.hasOwnProperty('code') ? ' ' + this.code + ': ' : ': ') +
-        this.message;
 
-    stack = this.stack.split('\n');
-    stack.splice(0, 1, this.message);
-    this.stack = stack.join('\n');
+
+function findArg(args, index, defaultValue, filter, antiFilters) {
+    var anti = -1;
+    var found = -1;
+    var i;
+    var j;
+    var len = index < args.length ? index : args.length;
+    var val;
+
+    for (i = 0; i <= len; i++) {
+        val = args[i];
+        if (anti === -1) {
+            for (j = 0; j < antiFilters.length; j++) {
+                if (antiFilters[j](val)) anti = i;
+            }
+        }
+        if (found === -1 && filter(val)) {
+            found = i;
+        }
+    }
+
+    if (found !== -1 && anti !== -1 && anti < found) throw new Err.order();
+    return found !== -1 ?args[found] : defaultValue;
 }
 
-/**
- * Convert object instance into JSON
- * @returns {string}
- */
-function toJSON() {
-    var result = {};
-    var self = this;
-    Object.getOwnPropertyNames(this).forEach(function(name) {
-        result[name] = name === 'stack' ? self[name].split('\n') : self[name];
+function isFactoryArg(value) {
+    return typeof value === 'function' && value !== Error && !value.prototype.CustomError;
+}
+
+function isNameArg(value) {
+    return typeof value === 'string';
+}
+
+function isParentArg(value) {
+    return typeof value === 'function' && (value === Error || value.prototype.CustomError);
+}
+
+function isPropertiesArg(value) {
+    return value && typeof value === 'object';
+}
+
+function noop() {}
+
+function rootFactory(properties, configuration) {
+    var _this = this;
+    var code;
+    var config = schema.instance.normalize(configuration || {});
+    var messageStr = '';
+    var originalStackLength = Error.stackTraceLimit;
+    var stack;
+
+    // copy properties onto this object
+    Object.keys(properties).forEach(function(key) {
+        switch(key) {
+            case 'code':
+                code = properties.code || void 0;
+                break;
+            case 'message':
+                messageStr = properties.message || '';
+                break;
+            default:
+                _this[key] = properties[key];
+        }
     });
-    return JSON.stringify(result);
+
+    // generate the stack trace
+    Error.stackTraceLimit = config.stackLength + 2;
+    stack = (new Error()).stack.split('\n');
+    stack.splice(0, 3);
+    stack.unshift('');
+    Error.stackTraceLimit = originalStackLength;
+    this.stack = stack.join('\n');
+
+    Object.defineProperty(this, 'code', {
+        configurable: true,
+        enumerable: true,
+        get: function() {
+            return code;
+        },
+        set: function(value) {
+            code = value;
+            updateStack();
+        }
+    });
+
+    Object.defineProperty(this, 'message', {
+        configurable: true,
+        enumerable: true,
+        get: function() {
+            return messageStr;
+        },
+        set: function(value) {
+            messageStr = value;
+            updateStack();
+        }
+    });
+
+
+    updateStack();
+
+    function updateStack() {
+        stack[0] = _this.toString();
+        _this.stack = stack.join('\n');
+    }
 }

@@ -10,15 +10,6 @@ Produce custom JavaScript errors that:
  - Produce custom error output.
  - Will produce a stack trace of the length you specify.
 
-## Table of Contents
-
- 1. [Install](#install)
- 2. [Basic Example](#basic-example)
- 3. [Practical Example](#practical-example)
- 4. [Explanation](#explanation)
- 5. [API](#api)
- 6. [Examples](#examples)
-
 ## Install
 
 ```sh
@@ -29,17 +20,50 @@ npm install custom-error-instance
 
 ```js
 var CustomError = require('custom-error-instance');
-var MyError = CustomError('MyError');
+var e;
 
-try {
-    throw new MyError('Oops', { code: 'EMY', foo: 'Foo' });
-} catch (e) {
-    console.log(e instanceof MyError);                  // true
-    console.log(e instanceof CustomError.MyError);      // true
-    console.log(e.constructor.name);                    // "MyError"
-    console.log(e.message);                             // "MyError EMY: Oops"
-    console.log(e.foo);                                 // "Foo"
-}
+// define a custom error with a default message
+var Parent = CustomError('ParentError', { message: 'Parent error' });
+
+// define a custom error that inherits from the Parent custom error
+var Child = CustomError('ChildError', Parent, { message: 'Child error' });
+
+// create an error instance that uses defaults
+e = Parent();
+console.log(e.toString());          // "ParentError: Parent error"
+console.log(e.message);             // "Parent error"
+console.log(e.name);                // "ParentError"
+console.log(e.constructor.name);    // "ParentError"
+console.log(e instanceof Parent);   // true
+console.log(e instanceof Error);    // true
+
+// create an error instance that overwrites the default message
+e = Parent('Hello');
+console.log(e.toString());          // "ParentError: Hello"
+console.log(e.message);             // "Hello"
+console.log(e.name);                // "ParentError"
+console.log(e.constructor.name);    // "ParentError"
+console.log(e instanceof Parent);   // true
+console.log(e instanceof Error);    // true
+
+// create an error instance that overwrites the default message and defines a code
+e = Parent({ message: 'Hello', code: 'XYZ' });
+console.log(e.toString());          // "ParentError XYZ: Hello"
+console.log(e.message);             // "Hello"
+console.log(e.name);                // "ParentError"
+console.log(e.constructor.name);    // "ParentError"
+console.log(e instanceof Parent);   // true
+console.log(e instanceof Error);    // true
+
+// create an error instance of the Child custom error
+e = Child();
+console.log(e.toString());          // "ParentError: Child error"
+console.log(e.message);             // "Child error"
+console.log(e.name);                // "ChildError"
+console.log(e.constructor.name);    // "ChildError"
+console.log(e instanceof Child);    // true
+console.log(e instanceof Parent);   // true
+console.log(e instanceof Error);    // true
 ```
 
 ## Practical Example
@@ -49,8 +73,8 @@ var CustomError = require('custom-error-instance');
 var store = {};
 
 var Err = CustomError('MapError');
-Err.extend('inuse', { message: 'The specified key is already in use.', code: 'EINUSE' });
-Err.extend('dne', { message: 'The specified key does not exist.', code: 'EDNE' });
+Err.inuse = CustomError(Err, { message: 'The specified key is already in use.', code: 'EINUSE' });
+Err.dne = CustomError(Err, { message: 'The specified key does not exist.', code: 'EDNE' });
 
 exports.add = function(key, value) {
     if (store.hasOwnProperty(key)) throw new Err.inuse();   // "MapError EINUSE: The specified key is already in use."
@@ -68,67 +92,54 @@ exports.remove = function(key) {
 };
 ```
 
-## Explanation
-
-First we need to include the custom-error-instance library in our code.
-
-```js
-var CustomError = require('custom-error-instance');
-```
-
-Next we create a custom error constructor function. This returns the custom error constructor, but it also registers it on the CustomError object as a property with the same name.
-
-```js
-var CustomError = require('custom-error-instance');
-
-var ErrorX = CustomError('MyError');
-console.log(ErrorX === CustomError.MyError);    // true
-```
-
-Now we can create an instance of our custom error.
-
-```js
-var CustomError = require('custom-error-instance');
-var ErrorX = CustomError('MyError');
-
-var err = new ErrorX('There is a problem.');
-console.log(err instanceof ErrorX);                 // true
-console.log(err instanceof CustomError.MyError);    // true
-console.log(err instanceof Error);                  // true, through inheritance
-```
-
-We can also throw the error directly.
-
-```js
-var CustomError = require('custom-error-instance');
-var ErrorX = CustomError('MyError');
-
-throw new ErrorX('There is a problem.');
-throw new CustomError.MyError('There is a problem.');
-```
-
 ## API
 
-This module has just one function that is used to produce custom error classes that extend the original Error class.
+This module has just one function that is used to produce custom error constructors.
 
-### CustomError ( name [, defaultProperties ] [, customConstructor ] )
+### CustomError ( [ name ] [, parent ] [, properties ] [, factory ] )
 
 Call this function to create a custom error constructor function. The constructor function that is produced will be returned by the function and it will also be registered as a property on CustomError.
 
-**Acceptable Signatures**
+**Parameters**
 
- - CustomError ( name )
- - CustomError ( name, defaultProperties );
- - CustomError ( name, customConstructor );
- - CustomError ( name, defaultProperties, customConstructor )
+- **name** - an optional string that defines the name for the error. This name is also applied to the constructor name property. Defaults to `'Error'` or the name of the parent custom error.
+- **parent** - an optional constructor function to inherit from. This function must be the `Error` function or a custom error constructor. Defaults to `Error`.
+- **properties** - an optional object with properties and values that will be merged with any properties provided when an instance is created from this custom error constructor. Defaults to `{}`
+- **factory** - an optional function to call to modify the properties of the custom error instance. If not provided and this constructor's parent is `Error` then the default factory will be used. Note that all factories in an inheritance chain will be called, starting at the top most parent in the inheritance chain. Every factory called recieves two parameters: 1) the merged properties object, 2) a configuration object that can specify instructions to the factory on what to do.
 
-**Parameters:**
+**Returns** a constructor function.
 
- - **name** (string, required) - The name to give the error class.
- - **defaultProperties** (object, optional) - an object defining the default properties for any error instances created by this class.
- - **customConstructor** (function, optional) - a function to call to modify any properties of the custom error object before it is returned. This function gets three parameters, 1) message, 2) properties, and 3) the parent customConstructor function. When the custom constructor is called it will scoped to the instance being generated.
+## Constructor Function
 
-**Returns:** A function that is called to construct a custom error instance. Additionally this function has a property *extend* that can be used to generate a hierarchy of errors. The extend function takes the same parameters as the CustomError function. See *Example 2* for details on how to make a child custom error.
+Defining a custom error returns a constructor function.
+
+```js
+var myErrConstructor = CustomError('MyErr', { message: 'Error occurred' });
+```
+
+You call the constructor to generate an error.
+
+```js
+throw new myErrConstructor();
+```
+
+The constructor function takes two parameters:
+
+1. **message** - This can be a string to fill the message property with or it can be an object that defines properties. Any properties defined here will overwrite properties specified when the constructor was being created by `CustomError`.
+2. **config** - A configuration that can modify the behavior of the factory.
+
+## Default Factory
+
+If a custom error is being defined without a factory and it's parent is `Error` then the default factory will be used. The default factory does the following:
+
+1) Copies properties and their values onto the instance.
+2) Generates a stack trace and stores it on the instance.
+3) Creates message getter and setter on the instance.
+4) Creates code getter and setter on the instance.
+
+The configuration parameter for the factory takes the following properties:
+
+- **stackLength** - Specify the length of the stack trace for this error instance.
 
 ## Examples
 
@@ -136,27 +147,28 @@ Call this function to create a custom error constructor function. The constructo
 
 ```js
 var CustomError = require('custom-error-instance');
-var MyErr = CustomError('MyError');                             // Note: MyErr === CustomError.MyError
+var MyErr = CustomError('MyError', { message: 'Default message' });
 
-console.log(new MyError('Oops').message);                       // "MyError: Oops";
-console.log(new MyError('Oops', { code: 'EOOP' }).message);     // "MyError EOOP: Oops"
+console.log(new MyError().toString());                                      // "MyError: Default Message";
+console.log(new MyError('Oops').toString());                                // "MyError: Oops";
+console.log(new MyError({ message: 'Oops', code: 'EOOP' }).toString());     // "MyError EOOP: Oops"
 ```
 
 **Example 2: Child Custom Error**
 
-Child custom errors inherit properties and the custom constructor function from their parent custom error. Properties are merged between the parent and the child. If the child defines a custom constructor then the parent's constructor is passed in as a third arguments for the child's custom constructor. See *Example 5* for details on how to use the custom constructor.
+Child custom errors inherit properties and the factories from their parent custom error.
 
 ```js
 var CustomError = require('custom-error-instance');
-var MyErr = CustomError('MyError');             // Note: MyErr === CustomError.MyError
-var ChildError = MyErr.extend('child');         // Note: ChildError === CustomError.MyError.child
-var e = new ChildError('Oops');
+var MyErr = CustomError('MyError', { message: 'Parent message' });
+var ChildError = CustomError('ChildError', MyErr, { message: 'Child message');
+var e = new ChildError();
 
-console.log(e.message);                         // "MyError.child: Oops";
+console.log(e.message);                         // "Child message";
 console.log(e instanceof ChildError);           // true
-console.log(e instanceof MyError);              // true, through inheritance
+console.log(e instanceof MyErr);                // true, through inheritance
 console.log(e instanceof Error);                // true, through inheritance
-console.log(e.constructor.name);                // "MyError.child"
+console.log(e.constructor.name);                // "ChildError"
 ```
 
 **Example 3: Default Properties**
@@ -166,7 +178,7 @@ var CustomError = require('custom-error-instance');
 var MyError = CustomError('MyError', { code: 'EMY', foo: 'bar' });
 
 var e = new MyError('Oops');
-console.log(e.message);         // "MyError EMY: Oops"
+console.log(e.message);         // "Oops"
 console.log(e.code);            // 'EMY'
 console.log(e.foo);             // "bar"
 ```
@@ -177,34 +189,21 @@ console.log(e.foo);             // "bar"
 var CustomError = require('custom-error-instance');
 var MyError = CustomError('MyError', { code: 'EMY', foo: 'bar' });
 
-var e = new MyError('Oops', { code: 'FOO' });
-console.log(e.message);                             // "MyError FOO: Oops"
+var e = new MyError({ message: 'Oops', code: 'FOO' });
+console.log(e.message);                             // "Oops"
 console.log(e.code);                                // 'FOO'
 console.log(e.foo);                                 // "bar"
 ```
 
-**Example 5: Custom Constructor**
+**Example 5: Custom Factory**
 
-In the following example, a function is passed in as the third argument when defining a custom error. This function will have the scope of the error instance being created (when it is created) and will receive the message string, properties object, and parent object.
+Every factory recieves two parameters: 1) the properties object, 2) a configuration that should be used to modify the behavior of the factory. If a custom error inherits from another custom error then all factories in the inheritance chain are called, starting at the topmost parent. The factory function is called with the scope of the error instance.
 
 ```js
 var CustomError = require('custom-error-instance');
-var MyError = CustomError('MyError', {}, function(message, properties, parent) {
-    this.message = 'This is a MyError with message: ' + message;
+var MyError = CustomError('MyError', function(properties, config) {
+    this.properties = properties;
 });
-
 var e = new MyError('Oops');
-console.log(e.message);         // "This is a MyError with message: Oops"
-```
-
-**Example 6: Stack Trace Length**
-
-If you ever need a longer stack trace on an error then you can use the configuration parameter to pass in the length of the stack trace that you want. Note that if you specify a number larger than the full possible stack trace that only that which is available will be included in the trace.
-
-```js
-var CustomError = require('custom-error-instance');
-var MyError = CustomError('MyError');
-
-var e = new MyError('Oops', {}, { stackLength: 20 });
-console.error(e.stack);         // output the stack trace
+console.log(e.properties.message);         // "Oops"
 ```

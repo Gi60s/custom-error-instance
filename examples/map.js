@@ -4,8 +4,8 @@ var CustomError = require('../index');
 var store = {};
 
 var Err = CustomError('MapError');
-Err.extend('inuse', { message: 'The specified key is already in use.', code: 'INUSE' });
-Err.extend('dne', { message: 'The specified key does not exist.', code: 'DNE' });
+Err.inuse = CustomError(Err, { message: 'The specified key is already in use.', code: 'INUSE' });
+Err.dne = CustomError(Err, { message: 'The specified key does not exist.', code: 'DNE' });
 
 exports.add = function(key, value) {
     if (store.hasOwnProperty(key)) throw new Err.inuse();
