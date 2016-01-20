@@ -1,5 +1,4 @@
 "use strict";
-var schema              = require('./schema');
 
 var Err = CustomError('CustomError');
 Err.order = CustomError(Err, { message: 'Arguments out of order.', code: 'EOARG' });
@@ -142,10 +141,15 @@ function noop() {}
 function rootFactory(properties, configuration) {
     var _this = this;
     var code;
-    var config = schema.instance.normalize(configuration || {});
+    var config = { stackLength: Error.stackTraceLimit };
     var messageStr = '';
     var originalStackLength = Error.stackTraceLimit;
     var stack;
+
+    if (configuration.hasOwnProperty('stackLength') &&
+        typeof configuration.stackLength === 'number' &&
+        !isNaN(configuration.stackLength) &&
+        configuration.stackLength >= 0) config.stackLength = configuration.stackLength;
 
     // copy properties onto this object
     Object.keys(properties).forEach(function(key) {
