@@ -146,6 +146,8 @@ function rootFactory(properties, configuration) {
     var originalStackLength = Error.stackTraceLimit;
     var stack;
 
+    // get configuration options
+    if (!configuration || typeof configuration !== 'object') configuration = {};
     if (configuration.hasOwnProperty('stackLength') &&
         typeof configuration.stackLength === 'number' &&
         !isNaN(configuration.stackLength) &&
