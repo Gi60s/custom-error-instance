@@ -155,7 +155,7 @@ This factory calls the root factory and then appends to the current message stri
 
 ```js
 var InvalidError = CustomError('InvalidError', { message: 'Invalid value.', code: 'EINVLD' }, CustomError.factory.expectReceive);
-var e = new Err({ expect: 'a string', received: 5 });
+var e = new Err({ expected: 'a string', received: 5 });
 console.log(e.toString());         // "InvalidError EINVLD: Invalid value. Expected a string. Received: 5"
 ```
 
