@@ -1,9 +1,10 @@
 "use strict";
 
+module.exports = CustomError;
+CustomError.factory = require('./factories.js');
+
 var Err = CustomError('CustomError');
 Err.order = CustomError(Err, { message: 'Arguments out of order.', code: 'EOARG' });
-
-module.exports = CustomError;
 
 /**
  * Create a custom error
@@ -25,11 +26,13 @@ function CustomError(name, parent, properties, factory) {
 
     // if this is the root and their is no factory then use the default root factory
     isRoot = parent === Error;
-    if (isRoot && factory === noop) factory = rootFactory;
+    if (isRoot && factory === noop) factory = CustomError.factory.root;
 
     // build the constructor function
     construct = function(message, configuration) {
+        var _this;
         var ar;
+        var factories;
         var i;
         var item;
         var props;
@@ -56,11 +59,20 @@ function CustomError(name, parent, properties, factory) {
         ar.unshift({});
         props = Object.assign.apply(Object, ar);
 
+        // build the factories caller (forcing scope to this)
+        _this = this;
+        factories = {};
+        Object.keys(CustomError.factory).forEach(function(key) {
+            factories[key] = function(props, config) {
+                CustomError.factory[key].call(_this, props, config, factories);
+            };
+        });
+
         // call each factory in the chain, starting at the root
         for (i = this.CustomError.chain.length - 1; i >= 0; i--) {
             item = this.CustomError.chain[i];
             if (item.factory !== noop) {
-                item.factory.call(this, props, configuration);
+                item.factory.call(this, props, configuration, factories);
             }
         }
     };
@@ -137,73 +149,3 @@ function isPropertiesArg(value) {
 }
 
 function noop() {}
-
-function rootFactory(properties, configuration) {
-    var _this = this;
-    var code;
-    var config = { stackLength: Error.stackTraceLimit };
-    var messageStr = '';
-    var originalStackLength = Error.stackTraceLimit;
-    var stack;
-
-    // get configuration options
-    if (!configuration || typeof configuration !== 'object') configuration = {};
-    if (configuration.hasOwnProperty('stackLength') &&
-        typeof configuration.stackLength === 'number' &&
-        !isNaN(configuration.stackLength) &&
-        configuration.stackLength >= 0) config.stackLength = configuration.stackLength;
-
-    // copy properties onto this object
-    Object.keys(properties).forEach(function(key) {
-        switch(key) {
-            case 'code':
-                code = properties.code || void 0;
-                break;
-            case 'message':
-                messageStr = properties.message || '';
-                break;
-            default:
-                _this[key] = properties[key];
-        }
-    });
-
-    // generate the stack trace
-    Error.stackTraceLimit = config.stackLength + 2;
-    stack = (new Error()).stack.split('\n');
-    stack.splice(0, 3);
-    stack.unshift('');
-    Error.stackTraceLimit = originalStackLength;
-    this.stack = stack.join('\n');
-
-    Object.defineProperty(this, 'code', {
-        configurable: true,
-        enumerable: true,
-        get: function() {
-            return code;
-        },
-        set: function(value) {
-            code = value;
-            updateStack();
-        }
-    });
-
-    Object.defineProperty(this, 'message', {
-        configurable: true,
-        enumerable: true,
-        get: function() {
-            return messageStr;
-        },
-        set: function(value) {
-            messageStr = value;
-            updateStack();
-        }
-    });
-
-
-    updateStack();
-
-    function updateStack() {
-        stack[0] = _this.toString();
-        _this.stack = stack.join('\n');
-    }
-}

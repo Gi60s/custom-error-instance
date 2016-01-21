@@ -1,23 +1,25 @@
 "use strict";
 var CustomError = require('../index');
-
 var store = {};
 
 var Err = CustomError('MapError');
 Err.inuse = CustomError(Err, { message: 'The specified key is already in use.', code: 'INUSE' });
-Err.dne = CustomError(Err, { message: 'The specified key does not exist.', code: 'DNE' });
 
-exports.add = function(key, value) {
+function add(key, value) {
+    if (Math.random() < .3) throw new Err('Random Error');
     if (store.hasOwnProperty(key)) throw new Err.inuse();
     store[key] = value;
-};
+}
 
-exports.get = function(key) {
-    if (!store.hasOwnProperty(key)) throw new Err.dne();
-    return store[key];
-};
-
-exports.remove = function(key) {
-    if (!store.hasOwnProperty(key)) throw new Err.dne();
-    delete store[key];
-};
+try {
+    add('x', 1);
+    add('x', 2);
+} catch (e) {
+    if (e instanceof Err.inuse) {
+        console.error(e.toString());        // "MapError INUSE: The specified key is already in use."
+    } else if (e instanceof Err) {
+        console.error('Unexpected ' + e);   // "Unexpected MapError: Random Error"
+    } else {
+        throw e;
+    }
+}

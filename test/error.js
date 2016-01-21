@@ -173,6 +173,17 @@ describe('CustomError', function() {
             var fn = function(props, config) { this.message = JSON.stringify(props); };
             var e = CustomError(fn)('Hello');
             expect(e.message).to.be.equal('{"message":"Hello"}');
+            expect(e.stack).to.be.undefined;
+        });
+
+        it('custom factory calling root', function() {
+            var fn = function(props, config, factory) {
+                factory.root(props, config);
+                this.message += ', Bob';
+            };
+            var e = CustomError(fn)('Hello');
+            expect(e.message).to.be.equal('Hello, Bob');
+            expect(e.stack).to.not.be.undefined;
         });
 
         it('custom and inherited factory', function() {
