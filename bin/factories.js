@@ -50,9 +50,13 @@ exports.root = function(properties, configuration, factories) {
 
         // generate the stack trace
         Error.stackTraceLimit = config.stackLength + 2;
-        stack = (new Error()).stack.split('\n');
-        stack.splice(0, 3);
-        stack.unshift('');
+        try {
+            stack = (new Error()).stack.split('\n');
+            stack.splice(0, 3);
+            stack.unshift('');
+        } catch (e) {
+            stack = ["failed getting stack trace."];
+        }
         Error.stackTraceLimit = originalStackLength;
         this.stack = stack.join('\n');
 
