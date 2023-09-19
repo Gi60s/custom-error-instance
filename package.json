@@ -15,7 +15,7 @@
     "instanceof"
   ],
   "author": "James Speirs",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Gi60s/custom-error-instance/issues"
   },
